@@ -17,7 +17,7 @@
  */
 
 #include "src/most_instance.h"
-#include "common/picojson.h"
+#include "picojson.h"
 #include <syslog.h>
 
 #include "Most.h"

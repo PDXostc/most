@@ -26,7 +26,7 @@
 */
 
 
-#include "common/extension.h"
+#include "extension.h"
 
 // This class exists to create an instance of the MOSTInstance object; This behavior
 // is required by the Crosswalk Extension architecture.

@@ -24,7 +24,7 @@ Requires:       ibus-hangul
 Requires:       ibus-libpinyin
 
 
-%global plugin_list extension_common BoilerPlateExtension most wkb_client_ext
+%global plugin_list extension_common most 
 
 %description
 A collection of IVI software
@@ -45,18 +45,4 @@ done
 
 
 %files
-%{_prefix}/lib/tizen-extensions-crosswalk/libbp.so
 %{_prefix}/lib/tizen-extensions-crosswalk/libmost.so
-%{_prefix}/lib/tizen-extensions-crosswalk/libwkb_client.so
-%{_prefix}/local/sbin/wkb_inst
-%{_prefix}/local/sbin/kb_inst
-%{_prefix}/share/weekeyboard/blue_1080.edj
-%{_prefix}/share/weekeyboard/blue_720.edj
-%{_prefix}/share/weekeyboard/blue_600.edj
-%{_prefix}/share/weekeyboard/green_1080.edj
-%{_prefix}/share/weekeyboard/green_720.edj
-%{_prefix}/share/weekeyboard/green_600.edj
-%{_prefix}/share/weekeyboard/amber_1080.edj
-%{_prefix}/share/weekeyboard/amber_720.edj
-%{_prefix}/share/weekeyboard/amber_600.edj
-

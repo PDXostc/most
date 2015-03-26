@@ -28,7 +28,7 @@
 
 #include <string>
 
-#include "common/extension.h"
+#include "extension.h"
 
 // This class exists to provide the top level C++ interfaces between JavaScript and C++.
 // The three methods defined here are
