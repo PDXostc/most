@@ -1,8 +1,8 @@
-Name:       agl_plugin_suite	
+Name:       most_extension
 Summary:    A collection of IVI software
 Version:    0.0.1
 Release:    1
-Group:      Applications/System
+Group:      Libraries/System
 License:    ASL 2.0
 URL:        http://www.tizen.org2
 Source0:    %{name}-%{version}.tar.bz2
