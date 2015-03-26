@@ -102,8 +102,8 @@ AudioMostImpl::AudioMostImpl(OptolyzerImpl& _theOptolyzer) : theOptolyzer(_theOp
 	send(si2, 200000);
 
 	// NY demo: send a default volume.
-	string si4("+87000FFF018600220046D0090100E0E0E0E0E0E0E0\r\n");
-	send(si4, 200000);
+// 	string si4("+87000FFF018600220046D0090100E0E0E0E0E0E0E0\r\n");
+// 	send(si4, 200000);
 }
 
 /**  send: wraps Optolyzer::send()
@@ -111,7 +111,7 @@ AudioMostImpl::AudioMostImpl(OptolyzerImpl& _theOptolyzer) : theOptolyzer(_theOp
 */
 int AudioMostImpl::send(std::string& cmd, unsigned int wait)
 {
-	syslog(LOG_USER | LOG_DEBUG, "JE: AudioMostImpl::send %s\n", cmd.c_str());
+//	syslog(LOG_USER | LOG_DEBUG, "JE: AudioMostImpl::send %s\n", cmd.c_str());
 
 	return theOptolyzer.send(cmd, wait);
 }
@@ -127,7 +127,7 @@ AudioMostImpl::~AudioMostImpl()
  */
 bool AudioMostImpl::setTone(const string& control, int level, int increment)
 {
-	syslog(LOG_USER | LOG_DEBUG, "JE: AudioMostImpl::setTone %s %d %d\n", control.c_str(), level, increment);
+	syslog(LOG_USER | LOG_DEBUG, "AudioMostImpl::setTone %s %d %d\n", control.c_str(), level, increment);
 
 	if( control == "volumeQuery")
 	{
@@ -287,7 +287,7 @@ string AudioMostImpl::curValue(std::string dest)
 
 		if(curVal == 0 )
 		{
-			syslog(LOG_USER | LOG_DEBUG, "JE  curValue 0");
+//			syslog(LOG_USER | LOG_DEBUG, "JE  curValue 0");
 		}
 
 		return to_string(curVal);  // TODO: find first to avoid exception.
