@@ -46,3 +46,4 @@ done
 
 %files
 %{_prefix}/lib/tizen-extensions-crosswalk/libmost.so
+%{_prefix}/bin/MOSTinit

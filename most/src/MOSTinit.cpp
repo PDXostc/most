@@ -37,6 +37,8 @@
 #include <fstream>
 #include <syslog.h>
 
+#if 0
+// JE: using most code as lib.
 namespace DeviceAPI
 {
 namespace Most
@@ -141,8 +143,8 @@ using namespace std;
 */
 
 // Named pipes for use by mostInitServer.
-// TODO: rm static const char* rFIFOName = "/tmp/OptolyzerStatusRFIFO";
-// TODO: rmstatic const char* wFIFOName = "/tmp/OptolyzerStatusWFIFO";
+static const char* rFIFOName = "/tmp/OptolyzerStatusRFIFO";
+static const char* wFIFOName = "/tmp/OptolyzerStatusWFIFO";
 static const char* configName = "/etc/most/conf";
 
 /** getConfig: Read config info from /etc/most/conf, such as which serial port to use.
@@ -213,13 +215,40 @@ string OptolyzerImpl::getConfig(enum ConfigTags tag)
 void OptolyzerImpl::create(std::string& serialDev, std::vector<StringAndDelay>& initCmds)
 {
 
+	// Open the FIFOs for communication with the mostInitServer.
 	umask(0); // Necessary, otherwise code that uses the MOST plug in will fail to open.
+#if 0
+	// For no most init.
+	int fdw = open(rFIFOName, O_APPEND | O_NONBLOCK | O_WRONLY );
 
+	// A characteristic of write only mode named pipes is: if one end has not yet opened it, trying to open WRONLY will fail.
+	// This provides a way to determine if the child process has been forked or not.
+    if( fdw < 0 )
+    {
+    	// This means that we need to fire off the mostInitServer.
+    	pid_t p = fork();
+
+    	if(p == 0)
+    	{
+    		mostInitServer();
+    	}
+    	else if( p > 0 )
+    	{
+    		sleep(3);  // Wait for child process to init Optolyzer/MOST before polling for OK responses.
+    	}
+    	else
+    	{
+    		syslog(LOG_USER | LOG_DEBUG, "MOST plugin fork error; MOST will not be functional. Try rebooting.");
+    	}
+
+    }
+#endif
     // Singleton; only need one instance.
 	if(!_instance )
 	{
 		_instance = new OptolyzerImpl(serialDev,initCmds);
 	}
+
 }
 /**
  *	Ctor; requires a path to the serial port that the Optolyzer is connected to.
@@ -269,6 +298,32 @@ OptolyzerImpl::OptolyzerImpl(std::string& serialDev, std::vector<StringAndDelay>
 		{
 			throw CtorFails {};
 		}
+#if 0
+		// For no most init.
+		// INVARIANT: only get here if port was configured successfully.
+
+		// Start up the receive thread that listens for response strings and passes them on to any registered user callback.
+		// Start up the ready thread that waits for Optolyzer init. to complete; instance() calls block on this
+		// thread's completion.
+		try
+		{
+			// This thread both reads incoming strings from the Optolyzer and sends them to any registered callbacks,
+			// and also polls the named pipe to see if mostInitServer is done, setting alreadyInit to true when the server
+			// finishes initialization.
+			pid = getpid();
+			recvThrd=new thread(&OptolyzerImpl::serialReadThrd, ref(*this));
+			//int pid = getpid();
+			//recvThrd=new thread(&OptolyzerImpl::serialReadThrd, std::ref(*this), 1000);
+
+
+			// This thread waits for mostInitServer to set alreadyInit to true.
+			initThrd=new thread(&OptolyzerImpl::readyThrd, ref(*this));
+		}
+		catch (...)
+		{
+			throw CtorFails {};
+		}
+#endif
 		// Return now, but instance() calls will block until the readyThrd is done.
 }
 /**
@@ -333,7 +388,98 @@ int OptolyzerImpl::recv(std::string& recvStr, unsigned int wait, int eolDef)
 */
 void OptolyzerImpl::serialReadThrd(void)
 {
-	// TODO: remove
+		const int sendQuestDelay=300000;  // In usec.
+		static int giveUpcnt = 23 * sendQuestDelay;  // Try for 7 sec. to see MOST init. is true before giving up.
+
+		int wlen=0;
+
+    	std::string inStr;
+    	inStr.reserve(100);
+
+    	// Open the FIFO for communication with the mostInitServer.
+		umask(0);
+
+		int fdr = open(wFIFOName, O_APPEND | O_RDWR );
+        if( fdr < 0 )
+        {
+        	syslog(LOG_USER | LOG_DEBUG,"serialReadThrd: Open of wr fifo fails.");
+            // TODO: throw?
+        }
+		int fdw = open(rFIFOName, O_APPEND | O_RDWR );
+        if( fdw < 0 )
+        {
+        	syslog(LOG_USER | LOG_DEBUG, "serialReadThrd: Open of rd fifo fails.\n");
+            // TODO: throw?
+        }
+
+        // Loop forever, reading strings from the Optolyzer and sening them to
+        // any registered callbacks, and also waiting for the mostInitServer process to signal
+        // Optolyzer init. has completed. Send "" on the other pipe to tell the mostInitServer that we
+        // are waiting for an OK from it.
+    	while(1)
+    	{
+			if( needInit() == true )
+			{
+		        // Query the MOST init. child process: is init. done yet?
+		        wlen=write(fdr, "??", 2);
+		        if( wlen != 2)
+		        	; // TODO: anything to be done?
+		    	char buff[FIFO_Msg_Sz];
+
+				int cnt = read(fdr, buff, 2);
+				buff[2] = 0;
+				if( cnt >= 2 )
+				{
+					if( (buff[0] == 'O') && (buff[1] == 'K'))
+					{
+						alreadyInit=true;
+						continue;
+					}
+					else
+					{
+						wlen=write(fdw, "??", 2);
+				        if( wlen != 2)
+				        	; // TODO: anything to be done?
+						usleep(sendQuestDelay);
+					}
+				}
+
+				if(--giveUpcnt == 0)
+				{
+					syslog(LOG_USER | LOG_DEBUG, "OptolyzerImpl::serialReadThrd: Giving up on init\n");
+					break;
+				}
+			}
+			// Init.  completed sometime in the past, so just get the next string from the Optolyzer
+			// and pass it on to any registered callbacks.
+			else
+			{
+		/*  Restore this to enable serial thread to handle messages from Optolyzer. Works fine,
+		    but due to pid problem with multiple widgets, abandoned its use for monitoring volume control setting.
+				if( pid != getpid() )
+				{
+					syslog(LOG_USER | LOG_DEBUG, "JE pid mismatch");
+					continue;
+				}
+
+				recv(inStr, 0, '\r');
+
+				// Use for_each to iterate through all of the callbacks registered,
+				// and invoke each one's userCB function. Using a lambda since userCB
+				// can take up to three parameters, even though for now not using anything
+				// but the 1st.
+				for_each(cbList.begin(), cbList.end(),
+					[&inStr](OptolyzerRecvCB* mc) {
+						if( mc->filter(inStr) == false )
+							mc->userCB(inStr, 0);
+						}
+				);
+
+				inStr.clear();
+
+		*/
+			}
+    	}
 }
 /**
 * This thread wait for init. to complete.
@@ -341,7 +487,13 @@ void OptolyzerImpl::serialReadThrd(void)
 */
 void OptolyzerImpl::readyThrd(void)
 {
-// TODO: remove
+	// Waits while mostInitServer sends init. commands, and the serialReadThrd sees "OK"
+	// from that server. instance() blocks on the join to this thread, holding off any
+	// OptolyzerImpl users until init. is done.
+	while( needInit() == true )
+	{
+		sleep(1);
+	}
 }
 
 /**
@@ -380,7 +532,7 @@ void OptolyzerImpl::setInitCmds(std::vector<StringAndDelay>& _cmds)
 void OptolyzerImpl::applyInitCmds(void)
 {
 	for_each(cmds.begin(), cmds.end(),
-		[this](StringAndDelay sd) { send(sd.str, sd.delay); } // this gives access to afterCmdWait.
+		[this](StringAndDelay sd) { send(sd.str, sd.delay); cout << sd.str << endl;} // this gives access to afterCmdWait.
 	);
 }
 
@@ -399,10 +551,121 @@ OptolyzerImpl::~OptolyzerImpl()
  */
 void mostInitServer()
 {
-	// TODO: remove
+	// Pass in an empty array to force use of defaults.
+	vector<StringAndDelay> cmds;
+	int wlen=0;
 
+
+	if(unlink(rFIFOName))  // TODO: how to handle error?
+	{
+		syslog(LOG_USER | LOG_DEBUG, "ERROR: could not remove %s\n", rFIFOName);
+	}
+	if(unlink(wFIFOName)) // TODO: how to handle error?
+	{
+		syslog(LOG_USER | LOG_DEBUG, "ERROR: could not remove %s\n", wFIFOName);
+	}
+	struct stat sbuf;
+	int s = stat(rFIFOName, &sbuf);
+
+	// FIFO does not yet exist.
+	if(s)
+	{
+		umask(0);
+		int fsr = mkfifo( rFIFOName, S_IRWXU| S_IRWXG | S_IRWXO);
+		if(fsr)
+		{
+			syslog(LOG_USER | LOG_DEBUG, "mkfifo read fails.\n");
+			exit(0);
+		}
+		int fsw = mkfifo( wFIFOName, S_IRWXU| S_IRWXG | S_IRWXO);
+		if(fsw)
+		{
+			syslog(LOG_USER | LOG_DEBUG, "mkfifo write fails.\n");
+			exit(0);
+		}
+
+		int fdr = open(rFIFOName, O_APPEND | O_NONBLOCK | O_RDWR );
+		int fdw = open(wFIFOName, O_APPEND | O_RDWR );
+
+		if( fdr < 0 )
+		{
+			syslog(LOG_USER | LOG_DEBUG,"rd Open of fifo fails.\n");
+			exit (0);
+		}
+		if( fdw < 0 )
+		{
+			syslog(LOG_USER | LOG_DEBUG, "wr Open of fifo fails.\n");
+			exit (0);
+		}
+
+		/*  Here send init cmds, then call OptolyzerImpl::create() which
+		 *  creates the instance and inits the port, but nothing else.
+		*/
+		//OptolyzerImpl::create(*(new string("/dev/ttyS0")), cmds);
+		string config = OptolyzerImpl::getConfig(SERIAL_PORT);
+		OptolyzerImpl::create(config, cmds);
+		OptolyzerImpl::setInitCmds(cmds);
+		OptolyzerImpl::_instance->applyInitCmds();
+
+		char buff[FIFO_Msg_Sz];
+
+		// Close this now since we never re-initialize, and keeping it open interferes
+		// with other instances trying to receive strings from Optolyzer/MOST.
+		close(OptolyzerImpl::_instance->getPort());
+
+		// Send OK msg. to any OptolyzerImpl instance that requests status.
+		while(1)
+		{
+			int cnt = read(fdr, buff, 2);
+			buff[2] = 0;
+			if( cnt >= 2 )
+			{
+				if( (buff[0] == '?') && (buff[1] == '?'))
+				{
+					wlen=write(fdw, "OK", 2);
+			        if( wlen != 2)
+			        	; // TODO: anything to be done?
+					usleep(500000);
+				}
+			}
+		}
+	}
+	else
+	{
+		syslog(LOG_USER | LOG_DEBUG, "ERROR! FIFO should not exist.\n");
+		exit(0);
+	}
 }
 
 } // Most
 } // DeviceAPI
+#endif
+/**
+ * Opens the serival port, sends to the Optolyzer its initialization strings, then exits.
+ * This allows instances of the MOST XW extension to communicate w/o having to be concerned with
+ * initializing the serial port or MOST.
+ */
+int main(int argc, char** argv)
+{
+	using namespace::DeviceAPI::Most;
+	vector<StringAndDelay> cmds;
+
+	cout << "Starting MOSTinit\n";
+	// Find serial port; either default ttyS0, or the specified in /etc/most/conf
+	string config = OptolyzerImpl::getConfig(SERIAL_PORT);
+
+	// Set member to reference the list of Optolyer init. strings.
+	OptolyzerImpl::setInitCmds(cmds);
+
+	OptolyzerImpl::create(config, cmds);
+
+
+	OptolyzerImpl& oi =  OptolyzerImpl::instance();
+	oi.applyInitCmds();
+
+	cout << "Ending MOSTinit\n";
+
+	return 0;
+}
+
 
