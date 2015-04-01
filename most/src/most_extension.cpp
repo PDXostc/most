@@ -28,12 +28,12 @@ extern const char kSource_most_api[];
 MOSTExtension::MOSTExtension() {
   SetExtensionName("most");
   SetJavaScriptAPI(kSource_most_api);
-	syslog(LOG_USER | LOG_DEBUG, "JE:  MOSTExtension ctor");
+	syslog(LOG_USER | LOG_DEBUG, "MOSTEXT:  MOSTExtension ctor");
 }
 
 MOSTExtension::~MOSTExtension() {}
 
 common::Instance* MOSTExtension::CreateInstance() {
-	syslog(LOG_USER | LOG_DEBUG, "JE:  CreateInstance");
+	syslog(LOG_USER | LOG_DEBUG, "MOSTEXT:  CreateInstance");
   return new MOSTInstance();
 }

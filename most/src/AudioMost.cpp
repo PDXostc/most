@@ -40,7 +40,8 @@ namespace DeviceAPI
 namespace Most
 {
 
-// protects access to CmdMap["volumeQuery"];
+extern bool loggingEnabled;
+
 using namespace std;
 
 
@@ -127,7 +128,8 @@ AudioMostImpl::~AudioMostImpl()
  */
 bool AudioMostImpl::setTone(const string& control, int level, int increment)
 {
-	syslog(LOG_USER | LOG_DEBUG, "AudioMostImpl::setTone %s %d %d\n", control.c_str(), level, increment);
+	if(loggingEnabled)
+		syslog(LOG_USER | LOG_DEBUG, "MOSTEXT AudioMostImpl::setTone %s %d %d\n", control.c_str(), level, increment);
 
 	if( control == "volumeQuery")
 	{
@@ -285,11 +287,8 @@ string AudioMostImpl::curValue(std::string dest)
 	{
 		curVal=CmdMap["volumeQuery"].curVal;
 
-		if(curVal == 0 )
-		{
-//			syslog(LOG_USER | LOG_DEBUG, "JE  curValue 0");
-		}
-
+		if(loggingEnabled)
+			syslog(LOG_USER | LOG_DEBUG, "MOSTEXT current volume: %d", curVal);
 		return to_string(curVal);  // TODO: find first to avoid exception.
 	}
 
@@ -297,7 +296,7 @@ string AudioMostImpl::curValue(std::string dest)
 }
 
 /*  Removed due to problems with the serial receive thread being somehow started with the pid of a previously
-    started widget app.
+    started widget app. Keeping it around for possible future use.
 */
 #if 0
 

@@ -24,7 +24,7 @@
 
 static DeviceAPI::Most::MostMaster* mostMaster;
 MOSTInstance::MOSTInstance() {
-	syslog(LOG_USER | LOG_DEBUG, "JE:  MOSTInstance ctor");
+	syslog(LOG_USER | LOG_DEBUG, "MOSTEXT: MOSTInstance ctor");
 	mostMaster = new DeviceAPI::Most::MostMaster;
 }
 
@@ -45,14 +45,14 @@ MOSTInstance::~MOSTInstance() {
 //
 void MOSTInstance::HandleMessage(const char* message) {
 
-	syslog(LOG_USER | LOG_DEBUG, "JE:  HandleMessage str is %s", message);
+//	syslog(LOG_USER | LOG_DEBUG, "HandleMessage str is %s", message);
 
 	// Parse json string into string, value pairs:
 	picojson::value v;
 	std::string err;
 	picojson::parse(v, message, message + strlen(message), &err);
 	if (!err.empty()) {
-	    syslog(LOG_USER | LOG_DEBUG, "JE: HandleMessage is Ignoring message.\n");
+	    syslog(LOG_USER | LOG_DEBUG, "MOSTEXT: HandleMessage is Ignoring message.\n");
 	    return;
 	}
 
@@ -62,14 +62,11 @@ void MOSTInstance::HandleMessage(const char* message) {
 
 	  if( v.is<picojson::null>())
 		  break;
-	  syslog(LOG_USER | LOG_DEBUG, "JE: OK1\n");
 
 	  std::string apiVal, destVal, paramVal1, paramVal2;
 
 	  apiVal = v.get("api").to_str();
 	  destVal = v.get("dest").to_str();
-	  syslog(LOG_USER | LOG_DEBUG, "JE: HandleMessage sees get(api) as %s\n", apiVal.c_str());
-	  syslog(LOG_USER | LOG_DEBUG, "JE: HandleMessage sees get(dest) as %s\n", destVal.c_str());
 
 	  if(apiVal.empty() || destVal.empty())
 		  break;
@@ -117,7 +114,7 @@ void MOSTInstance::HandleMessage(const char* message) {
 	  }
 	  else
 	  {
-		  syslog(LOG_USER | LOG_DEBUG, "JE: Unsupported api: %s\n", apiVal.c_str());
+		  syslog(LOG_USER | LOG_DEBUG, "MOSTEXT: Unsupported api: %s\n", apiVal.c_str());
 		  break;
 	  }
 
@@ -128,7 +125,7 @@ void MOSTInstance::HandleMessage(const char* message) {
 
 	if(failed)
 	{
-	  syslog(LOG_USER | LOG_DEBUG, "JE: HandleMessage fails\n");
+	  syslog(LOG_USER | LOG_DEBUG, "MOSTEXT: HandleMessage fails\n");
 	  std::string msg;
 			  std::string resp = PrepareMessage(msg);
 
@@ -152,7 +149,7 @@ void MOSTInstance::HandleMessage(const char* message) {
 }
 // Called by JavaScript to pass in a message that will be executed synchronously.
 void MOSTInstance::HandleSyncMessage(const char* message) {
-	syslog(LOG_USER | LOG_DEBUG, "JE:  HandleSyncMessage str is %s", message);
+//	syslog(LOG_USER | LOG_DEBUG, "JE:  HandleSyncMessage str is %s", message);
 
 	 picojson::value v;
 	  std::string err;
@@ -161,8 +158,8 @@ void MOSTInstance::HandleSyncMessage(const char* message) {
 	  std::string msg;
 
 	  if (!err.empty()) {
-	    syslog(LOG_USER | LOG_DEBUG, "JE: HandleSyncMessage is Ignoring message.\n");
-	    msg = std::string("JE: empty");
+	    syslog(LOG_USER | LOG_DEBUG, "MOSTEXT: HandleSyncMessage is Ignoring message.\n");
+	    msg = std::string("MOSTEXT: empty");
 
 		  std::string resp = PrepareMessage(msg);
 
@@ -175,7 +172,7 @@ void MOSTInstance::HandleSyncMessage(const char* message) {
 	  }
 
 	  msg = v.get("msg").to_str();
-	  syslog(LOG_USER | LOG_DEBUG, "JE: HandleSyncMessage sees message string as %s\n", msg.c_str());
+//	  syslog(LOG_USER | LOG_DEBUG, "JE: HandleSyncMessage sees message string as %s\n", msg.c_str());
 
 	  std::string resp = PrepareMessage(msg);
 
@@ -189,6 +186,6 @@ void MOSTInstance::HandleSyncMessage(const char* message) {
 // The implementation of HandleMessage and HandleSyncMessage call this function to format the reply
 // to be sent back to the JavaScript into JSON.
 std::string MOSTInstance::PrepareMessage(std::string msg) const {
-	syslog(LOG_USER | LOG_DEBUG, "JE:  PrepareMessage");
+//	syslog(LOG_USER | LOG_DEBUG, "JE:  PrepareMessage");
   return mostMaster->curValue("volume");
 }

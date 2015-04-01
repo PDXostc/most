@@ -73,7 +73,7 @@ std::unique_ptr<AudioMostImpl> am;
 
 MostMaster::MostMaster()
 {
-    syslog(LOG_USER | LOG_DEBUG, "MostMaster ctor");
+    syslog(LOG_USER | LOG_DEBUG, "MOSTEXT: MostMaster ctor");
 	// Pass in an empty array to force use of defaults.
     vector<StringAndDelay> cmds;
 
@@ -89,6 +89,7 @@ MostMaster::MostMaster()
 	// Optolyzer has finished its initialization; about 6 seconds.
 	// OptolyzerImpl::create(path, cmds);
 	string config = OptolyzerImpl::getConfig(SERIAL_PORT);
+	OptolyzerImpl::getConfig(LOGGING);
 	OptolyzerImpl::create(config, cmds);
 }
 

@@ -51,7 +51,7 @@ struct StringAndDelay
 	int delay;  // In microseconds.
 };
 
-enum ConfigTags { SERIAL_PORT };
+enum ConfigTags { SERIAL_PORT, LOGGING };
 
 class OptolyzerRecvCB;
 
@@ -78,18 +78,10 @@ class OptolyzerImpl
 	*/
 	static void create(std::string& serialDev, std::vector<StringAndDelay>& initCmds);
 
-	/** The only way to access an OptolyzerImpl object. It will block the first time called, 
-	*   until the lengthy initialization is complete. However, there is also a mechanism
-	*   provided that can detect a previous initialization and so skip the long sequence
-	*   of init. commands. This is useful when multiple processes are making use of the HW.
+	/** The only way to access an OptolyzerImpl object.
 	*/
 	static OptolyzerImpl& instance(void)
 	{
-		// Apparently this is quite necessary, even though sometimes calling join
-		// on the thread after it has been joined seems to work.
-		if( initThrd && initThrd->joinable() )
-			initThrd->join();
-
 		return *(_instance);
 	}
 
@@ -123,11 +115,6 @@ class OptolyzerImpl
 	int getPort(void) { return serialPort; }
 
 	/**
-	* Detects whether the Optolyzer has already been initialized by a different process.
-	*/
-	bool needInit(void);
-
-	/**
 	* Static method that can be called before create() to set a callback that will be invoked
 	* each time a command is received from the Optolyzer HW.
 	*/
@@ -149,38 +136,15 @@ class OptolyzerImpl
 	// by join call on readyThrd.
 	static OptolyzerImpl* _instance;  // TODO: should be private; public now to allow server access.
 
-	// TODO: back to private and add accessors.
-	static std::thread* recvThrd, *initThrd;
-
-	//mutex serialAccess;
-
-	pid_t pid;
-
-
 private:
 
 	// Only called by create()
 	OptolyzerImpl(std::string& serialDev, std::vector<StringAndDelay>& initCmds);
 	~OptolyzerImpl();
 
-	// This thread waits for incoming strings from the  Optolyzer HW by calling recv(), then
-	// invokes any callback that have been registered.
-	void serialReadThrd(void);
-
-	// This thread exists because it takes ~15 seconds to send all of the Optolyzer commands
-	// necessary to initialize it. To keep create() from blocking for this long, the ctor
-	// creates this thread to do this lengthy phase of initialization. To prevent a caller
-	// of instance() from obtaining an incompletely initialized object, instance() blocks 
-	// via a join call on readyThrd.
-	// TODO: while this synchronization works fine across threads, it does not work across processes
-	// i.e., different widget applications.
-	void readyThrd(void);
-
 	// The /dev/ttyXXX port the Optolyzer HW is connected to.
 	int serialPort;
 	unsigned int afterCmdWait;  // Delay after sending serial cmd, in usec.
-
-
 
 	// Container for receive callbacks.
 	static std::vector<OptolyzerRecvCB*> cbList;
@@ -188,8 +152,6 @@ private:
 	// Collection of initialization strings sent to the  Optolyzer hardware
 	// once on startup.
 	static std::vector<StringAndDelay> cmds;
-
-	bool alreadyInit;  // Used by needInit().
 
 	// No copy or assign allowed, nor default ctor.
 	OptolyzerImpl(OptolyzerImpl&);

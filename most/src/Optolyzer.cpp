@@ -46,8 +46,6 @@ void mostInitServer();
 
 using namespace std;
 
-
-
 	const int DELAY1=35000;
 	const int DELAY2=100000;
 
@@ -134,15 +132,11 @@ using namespace std;
 
 	OptolyzerImpl* OptolyzerImpl::_instance;
 
-	std::thread* OptolyzerImpl::recvThrd, *OptolyzerImpl::initThrd;
+	bool loggingEnabled=false;
 
 /** Singleton; you can call this from any scope.
 *   To access the created OptolyzerImpl you must call instance() to obtain a reference.
 */
-
-// Named pipes for use by mostInitServer.
-// TODO: rm static const char* rFIFOName = "/tmp/OptolyzerStatusRFIFO";
-// TODO: rmstatic const char* wFIFOName = "/tmp/OptolyzerStatusWFIFO";
 static const char* configName = "/etc/most/conf";
 
 /** getConfig: Read config info from /etc/most/conf, such as which serial port to use.
@@ -160,30 +154,28 @@ string OptolyzerImpl::getConfig(enum ConfigTags tag)
 
 	 if(!cf)
 	 {
-		 syslog(LOG_USER | LOG_DEBUG, "Cannot open config file %s", configName);
+		 syslog(LOG_USER | LOG_DEBUG, "MOSTEXT: Cannot open config file %s; will use default port %s", configName, defaultPort.c_str() );
 		 return defaultPort;
 	 }
 
-	// ConfigTags tagc;
-	// int tagt;
 	 string tagName, tagVal;
 	 int fd = -1;
+	do
+	{
+	cf >> tagName >> tagVal;
+	syslog(LOG_USER | LOG_DEBUG, "MOSTEXT: Tag %s and value %s seen in config file:", tagName.c_str(), tagVal.c_str());
 
 	 switch(tag)
 	 {
 	 	 case SERIAL_PORT:
-	 		 do
-	 		 {
-	 			cf >> tagName >> tagVal;
-	 			syslog(LOG_USER | LOG_DEBUG, "Tag %s and value %s seen in config file:", tagName.c_str(), tagVal.c_str());
 
 	 			if((fd=open(tagVal.c_str(), O_RDWR|O_NOCTTY|O_SYNC|O_NONBLOCK)) < 0 )
 	 			{
-	 				syslog(LOG_USER | LOG_DEBUG, "Can't open %s", tagVal.c_str());
+	 				syslog(LOG_USER | LOG_DEBUG, "MOSTEXT: Can't open %s", tagVal.c_str());
 	 				tagName = "";
-	 				continue;
+	 				break;
 	 			}
-	 		 } while( (tagName != "MOST_SERIAL") && !cf.eof() );
+
 
 	 		 if(tagName == "MOST_SERIAL")
 	 		 {
@@ -191,13 +183,25 @@ string OptolyzerImpl::getConfig(enum ConfigTags tag)
 	 			 return tagVal;
 	 		 }
 	 		 break;
+	 	 case LOGGING:
+
+ 			syslog(LOG_USER | LOG_DEBUG, "MOSTEXT: Tag %s and value %s seen in config file:", tagName.c_str(), tagVal.c_str());
+	 		 if(tagName == "LOGGING")
+	 		 {
+	 			 loggingEnabled = (tagVal == "1") ? true : false;
+	 			 return "";
+	 		 }
+ 			break;
 
 	 	 default:
-	 		syslog(LOG_USER | LOG_DEBUG, "Did not see tag %d", tag);
+	 		syslog(LOG_USER | LOG_DEBUG, "MOSTEXT: Did not see tag %d", tag);
 	 		break;
 	 }
 
-	return defaultPort;
+	} while( !cf.eof() );
+
+
+			return defaultPort;
 }
 
 /** create: creates the OptolyzerImpl singleton and initializes hardware if necessary.
@@ -205,10 +209,6 @@ string OptolyzerImpl::getConfig(enum ConfigTags tag)
  * 	initCmds:  	if not empty, these commands will be sent to initialize the Optolyzer/MOST hardware.
  * 				otherwise, the default commands in OptolyerInitCmds above will be used.
  *
- * 	This function also detects whether the Optolyzer/MOST needs to have init. commands sent.
- * 	Init. needs to happen only once per platform power up, so a process to send the commands is forked once,
- * 	and this process is queried by subsequent calls to instance() so that they will block if init.
- * 	has not yet completed.
  */
 void OptolyzerImpl::create(std::string& serialDev, std::vector<StringAndDelay>& initCmds)
 {
@@ -230,12 +230,12 @@ void OptolyzerImpl::create(std::string& serialDev, std::vector<StringAndDelay>& 
  *	TODO: initCmds parameter to be removed, as it is now used only by mostInitServer,
  */
 OptolyzerImpl::OptolyzerImpl(std::string& serialDev, std::vector<StringAndDelay>& initCmds) :
-		serialPort(-1), afterCmdWait(200000), alreadyInit(false)
+		serialPort(-1), afterCmdWait(200000)
 {
 
 		if( (serialPort = open(serialDev.c_str(), O_RDWR|O_NOCTTY|O_SYNC|O_NONBLOCK)) < 0 )
 		{
-			syslog(LOG_USER | LOG_DEBUG, "Could not open serial port; no MOST communication will be possible.");
+			syslog(LOG_USER | LOG_DEBUG, "MOSTEXT: Could not open serial port; no MOST communication will be possible.");
 			return;
 		//	throw CtorFails {};
 		}
@@ -269,7 +269,6 @@ OptolyzerImpl::OptolyzerImpl(std::string& serialDev, std::vector<StringAndDelay>
 		{
 			throw CtorFails {};
 		}
-		// Return now, but instance() calls will block until the readyThrd is done.
 }
 /**
 * Send a command string to the Optolyzer hardware. The optional wait param sets a delay
@@ -323,33 +322,6 @@ int OptolyzerImpl::recv(std::string& recvStr, unsigned int wait, int eolDef)
 		} while(c != eolDef);
 		
 		return cnt;
-}
-
-/**
-* This thread reads strings sent from the Optolyzer to the serial port,
-* and also polls a named pipe for the message indicating that the Optolyzer is
-* fully initialized. It also sends each string to any callbacks that
-* have been registered.
-*/
-void OptolyzerImpl::serialReadThrd(void)
-{
-	// TODO: remove
-}
-/**
-* This thread wait for init. to complete.
-
-*/
-void OptolyzerImpl::readyThrd(void)
-{
-// TODO: remove
-}
-
-/**
-* Detects whether the Optolyzer has already been initialized.
-*/
-bool OptolyzerImpl::needInit(void)
-{
-	return !alreadyInit;
 }
 
 /**
