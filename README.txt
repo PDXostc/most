@@ -37,3 +37,7 @@ gbs build process:
 
 KnownIssues: 
 
+Apr. 7 2015:  The systemd mechanism does not correctly start the initMOST executable on startup, on the NUC. 
+For NUC users, make sure you change permissions of the tty device for your USB to serial port adapter to a+rw, 
+and run /usr/bin/initMOST before attempting to use Optolyzer/MOST hardware.
+

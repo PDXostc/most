@@ -1,0 +1,11 @@
+[Unit]
+Description=MOST initialization
+Requires=Tizen system middleware services
+After=Tizen system middleware services
+
+[Install]
+WantedBy=multi-user.target
+
+[Service]
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/%U/dbus/user_bus_socket
+ExecStart=/bin/bash -c "chmod a+rw /dev/ttyS* ; chmod a+rw /dev/ttyUSB* ; /usr/bin/MOSTinit"

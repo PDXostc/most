@@ -1,0 +1,7 @@
+# Description=Path activation for MOST
+
+[Path]
+Unit=MOST.service
+
+[Install]
+WantedBy=multi-user.target

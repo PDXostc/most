@@ -43,7 +43,20 @@ for plugin in %{plugin_list}; do
     make -C ${plugin} install DESTDIR=%{buildroot} PREFIX=%{_prefix}
 done
 
+%post
+sudo systemctl enable MOST.service 
+sudo chmod a+x /etc/most
 
+%postun
+sudo rm -fr /etc/most
+
+# The MOSTinit, MOST.service and MOST-ready.path are part of the systemd method to execute
+# MOSTinit at boot up. 
 %files
 %{_prefix}/lib/tizen-extensions-crosswalk/libmost.so
 %{_prefix}/bin/MOSTinit
+%{_prefix}/lib/systemd/system/MOST.service
+%{_prefix}/lib/systemd/system/MOST-ready.path
+%{_prefix}/../etc/most/conf.NDIS
+%{_prefix}/../etc/most/conf.NUC
+%{_prefix}/../etc/most/conf.VTC1010
